@@ -1,0 +1,8 @@
+#!/system/bin/sh
+# android-shizuku-skill: rish wrapper for THIS device.
+#
+# Shizuku authorization is keyed to an application id. We live inside
+# Termux (package com.termux), so tell the Shizuku shell loader who we are
+# before exec'ing the real rish that Shizuku installed for Termux.
+export RISH_APPLICATION_ID=com.termux
+exec /data/data/com.termux/files/home/rish "$@"
