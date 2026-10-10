@@ -6,9 +6,9 @@ A security-testing and device-control skill for AI agents: **full control of a
 non‑rooted Android phone via Shizuku** — no root, no adb host. Everything runs
 on‑device from Termux as `uid 2000 (shell)`.
 
-**Made with fun by Simo** — Telegram: [t.me/syn74x_3rr](https://t.me/syn74x_3rr)
+**Made with fun by Simo** — Telegram: [syn74x_3rr](https://t.me/syn74x_3rr)
 
-## 🎯 What this skill does
+## What this skill does
 
 Turns an AI agent into an operator for a non‑rooted Android device. It can:
 
@@ -28,7 +28,7 @@ Turns an AI agent into an operator for a non‑rooted Android device. It can:
 - **Produce verifiable evidence** — screenshots + UI‑tree snapshots at each step,
   ready for reports.
 
-## ⚡ Main scripts (name → purpose)
+## ⚡ Main scripts
 
 | Script | Purpose |
 |---|---|
@@ -47,7 +47,7 @@ Turns an AI agent into an operator for a non‑rooted Android device. It can:
 Deep docs (architecture, permissions, logs & crashes, UI playbook,
 troubleshooting) live in `references/`.
 
-## ⚙️ Requirements & install
+## Requirements & install
 
 - Non‑rooted Android with **Shizuku** running (wireless debugging, adb, or root)
   and a terminal app with the `rish` loader from the Shizuku **Shell** page
@@ -60,7 +60,7 @@ Portable by design: standard `SKILL.md` layout (name + description frontmatter),
 bash + Python only, no agent‑specific SDK — works with Claude Code, VS Code,
 Cursor, Codex, Gemini CLI and any other `SKILL.md`‑capable agent.
 
-## 🛡️ Safety & scope
+## Safety & scope
 
 - Read‑only by default; mutating actions (taps, settings, appops) only when a
   task requires them.
@@ -70,6 +70,6 @@ Cursor, Codex, Gemini CLI and any other `SKILL.md`‑capable agent.
 - **Authorized use only** — test only devices and apps you own or are
   explicitly permitted to audit.
 
-## 📄 License & author
+## License & author
 
 MIT — see [LICENSE](LICENSE).
