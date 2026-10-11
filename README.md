@@ -3,7 +3,7 @@
 # android-shizuku-skill
 
 A security-testing and device-control skill for AI agents: **full control of a
-non‑rooted Android phone via Shizuku** — no root, no adb host. Everything runs
+non‑rooted Android device via Shizuku** — no root, no adb host. Everything runs
 on‑device from Termux as `uid 2000 (shell)`.
 
 **Made with fun by Simo** — Telegram: [syn74x_3rr](https://t.me/syn74x_3rr)
