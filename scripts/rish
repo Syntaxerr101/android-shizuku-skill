@@ -1,0 +1,216 @@
+#!/system/bin/sh
+# android-shizuku-skill — portable rish launcher.
+#
+# Works from native Termux AND from a PRoot/proot-distro Linux shell (the
+# Android filesystem is visible in both). It:
+#   1. works out which terminal app owns this shell (the Shizuku "application id"),
+#   2. stages the bundled rish + rish_shizuku.dex into that app's PRIVATE data dir
+#      (the only place app_process may load a non-writable dex from on Android 14+),
+#   3. exports RISH_APPLICATION_ID and execs the real loader.
+#
+# Override the app id when auto-detection is wrong:
+#   RISH_APPLICATION_ID=com.example.term   bash scripts/rish -c id
+# or persist it:
+#   echo com.example.term > ~/.config/shizuku-skill/app-id
+#
+# Debug what was detected:
+#   RISH_DEBUG=1 bash scripts/rish -c id
+set -u
+
+# ---- locate this script / skill root (no readlink -f dependency) ----
+case "$0" in
+  */*) _d=${0%/*} ;;
+  *)   _d=. ;;
+esac
+SCRIPT_DIR=$(CDPATH= cd -- "$_d" 2>/dev/null && pwd -P) || SCRIPT_DIR=$_d
+SKILL_DIR=${SCRIPT_DIR%/*}
+[ "$SKILL_DIR" = "$SCRIPT_DIR" ] && SKILL_DIR=$SCRIPT_DIR
+
+valid_pkg() {
+  case "$1" in
+    *.*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    *[!A-Za-z0-9._]*) return 1 ;;
+  esac
+  return 0
+}
+
+# /data/data/<pkg>/... or /data/user/<n>/<pkg>/... -> <pkg>
+pkg_from_path() {
+  _p=$1
+  case "$_p" in
+    /data/data/*)
+      _p=${_p#/data/data/}
+      _p=${_p%%/*}
+      valid_pkg "$_p" && { printf '%s\n' "$_p"; return 0; }
+      ;;
+    /data/user/[0-9]*/*)
+      _p=${_p#/data/user/}
+      _p=${_p#*/}
+      _p=${_p%%/*}
+      valid_pkg "$_p" && { printf '%s\n' "$_p"; return 0; }
+      ;;
+    /data/user_de/[0-9]*/*)
+      _p=${_p#/data/user_de/}
+      _p=${_p#*/}
+      _p=${_p%%/*}
+      valid_pkg "$_p" && { printf '%s\n' "$_p"; return 0; }
+      ;;
+  esac
+  return 1
+}
+
+APP_ID=""
+
+# 1) explicit environment
+if [ -n "${SHIZUKU_APP_ID:-}" ] && valid_pkg "$SHIZUKU_APP_ID"; then
+  APP_ID=$SHIZUKU_APP_ID
+fi
+if [ -z "$APP_ID" ] && [ -n "${RISH_APPLICATION_ID:-}" ] && valid_pkg "$RISH_APPLICATION_ID"; then
+  APP_ID=$RISH_APPLICATION_ID
+fi
+
+# 2) persisted config
+if [ -z "$APP_ID" ]; then
+  for _f in "$SKILL_DIR/.app-id" \
+            "${XDG_CONFIG_HOME:-${HOME:-/nonexistent}/.config}/shizuku-skill/app-id" \
+            "${HOME:-/nonexistent}/.rish-app-id"; do
+    [ -f "$_f" ] || continue
+    _v=$(sed -n '1{s/[[:space:]]//g;p;}' "$_f" 2>/dev/null)
+    if valid_pkg "$_v"; then APP_ID=$_v; break; fi
+  done
+fi
+
+# 3) infer from environment values that contain an Android app path
+if [ -z "$APP_ID" ]; then
+  for _v in "${PREFIX:-}" "${HOME:-}" "${SHELL:-}" "${TMPDIR:-}" \
+            "${PROOT_L2S_DIR:-}" "${PROOT_TMP_DIR:-}" \
+            "${PROOT_LOADER:-}" "${PROOT_ROOTFS:-}"; do
+    [ -n "$_v" ] || continue
+    _p=$(pkg_from_path "$_v" 2>/dev/null) && { APP_ID=$_p; break; }
+  done
+fi
+
+# 4) infer from the process ancestry (catches proot-distro, whose cmdline
+#    contains /data/data/<terminal-pkg>/... even when the env was scrubbed)
+if [ -z "$APP_ID" ]; then
+  _pid=$$
+  _i=0
+  while [ "$_i" -lt 8 ]; do
+    if [ -r "/proc/$_pid/cmdline" ]; then
+      _cl=$(tr '\0' '\n' < "/proc/$_pid/cmdline" 2>/dev/null)
+      _p=$(printf '%s\n' "$_cl" | while IFS= read -r _line; do
+             pkg_from_path "$_line" 2>/dev/null && break
+           done)
+      [ -n "$_p" ] && { APP_ID=$_p; break; }
+    fi
+    _ppid=$(awk '/^PPid:/{print $2; exit}' "/proc/$_pid/status" 2>/dev/null)
+    case "${_ppid:-}" in ''|0) break ;; esac
+    _pid=$_ppid
+    _i=$((_i + 1))
+  done
+fi
+
+# 5) last resort: the canonical Termux package, only if it really exists
+if [ -z "$APP_ID" ] && [ -d /data/data/com.termux/files/home ]; then
+  APP_ID=com.termux
+fi
+
+if [ -z "$APP_ID" ]; then
+  cat >&2 <<'EOF'
+rish: cannot determine the terminal app package (Shizuku "application id").
+
+Set it explicitly and retry:
+  export RISH_APPLICATION_ID=<your.terminal.package>
+  # or: echo <your.terminal.package> > ~/.config/shizuku-skill/app-id
+
+Find the package of the app hosting this shell:
+  pm list packages | grep -i term        # from any shell with pm access
+  # in Termux the package is shown in Settings > Apps > Termux
+EOF
+  exit 126
+fi
+
+# ---- choose the app's private home dir (Android-visible in Termux and PRoot) ----
+APP_DATA="/data/data/$APP_ID"
+HOME_DIR=""
+if [ -d "$APP_DATA/files/home" ] && [ -w "$APP_DATA/files/home" ]; then
+  HOME_DIR="$APP_DATA/files/home"
+elif [ -n "${HOME:-}" ]; then
+  case "$HOME" in
+    "$APP_DATA"/files|"$APP_DATA"/files/*) HOME_DIR=$HOME ;;
+  esac
+fi
+if [ -z "$HOME_DIR" ] && [ -d "$APP_DATA/files" ] && [ -w "$APP_DATA/files" ]; then
+  HOME_DIR="$APP_DATA/files"
+fi
+if [ -z "$HOME_DIR" ]; then
+  # Last resort. app_process may refuse a dex outside the app dir on SDK 34+.
+  HOME_DIR=${HOME:-/tmp}
+fi
+
+RUNTIME="$HOME_DIR/.rish-skill"
+if ! mkdir -p "$RUNTIME" 2>/dev/null; then
+  echo "rish: cannot create $RUNTIME" >&2
+  echo "rish: the terminal app's private dir must be writable (start from inside that app)." >&2
+  exit 126
+fi
+
+stage() { # <src> <dst> <mode>
+  _src=$1; _dst=$2; _mode=$3
+  if [ ! -f "$_dst" ] || ! cmp -s "$_src" "$_dst" 2>/dev/null; then
+    cp -f "$_src" "$_dst" 2>/dev/null || return 1
+  fi
+  chmod "$_mode" "$_dst" 2>/dev/null || return 1
+}
+
+BUNDLED="$SKILL_DIR/bin"
+if [ -f "$BUNDLED/rish" ] && [ -f "$BUNDLED/rish_shizuku.dex" ]; then
+  stage "$BUNDLED/rish" "$RUNTIME/rish" 700 &&
+  stage "$BUNDLED/rish_shizuku.dex" "$RUNTIME/rish_shizuku.dex" 400
+else
+  # No bundled copy: reuse what the Shizuku app installed for this terminal.
+  [ -f "$HOME_DIR/rish" ] && stage "$HOME_DIR/rish" "$RUNTIME/rish" 700
+  [ -f "$HOME_DIR/rish_shizuku.dex" ] && stage "$HOME_DIR/rish_shizuku.dex" "$RUNTIME/rish_shizuku.dex" 400
+fi
+
+if [ ! -f "$RUNTIME/rish" ] || [ ! -f "$RUNTIME/rish_shizuku.dex" ]; then
+  cat >&2 <<EOF
+rish: loader files are missing.
+
+Expected:
+  $RUNTIME/rish
+  $RUNTIME/rish_shizuku.dex
+
+Fix it with either:
+  bash "$SKILL_DIR/scripts/rish-bootstrap.sh"          # extract from the Shizuku APK
+  bash "$SKILL_DIR/scripts/rish-bootstrap.sh" --apk /path/to/base.apk
+
+Or extract these two entries from the Shizuku manager APK with any unzip tool:
+  assets/rish
+  assets/rish_shizuku.dex
+and place them in "$SKILL_DIR/bin/".
+EOF
+  exit 127
+fi
+
+chmod 700 "$RUNTIME/rish" 2>/dev/null
+# Android 14+ refuses to load a writable dex.
+chmod 400 "$RUNTIME/rish_shizuku.dex" 2>/dev/null
+
+if [ ! -x /system/bin/app_process ] && [ ! -x /system/bin/app_process64 ]; then
+  echo "rish: /system/bin/app_process is not available in this environment." >&2
+  echo "rish: run this from Termux/PRoot on the device (not from a chroot without /system)." >&2
+  exit 127
+fi
+
+export RISH_APPLICATION_ID="$APP_ID"
+
+if [ "${RISH_DEBUG:-0}" = 1 ]; then
+  echo "rish[debug]: app_id=$APP_ID home=$HOME_DIR runtime=$RUNTIME" >&2
+fi
+
+exec "$RUNTIME/rish" "$@"
+           
