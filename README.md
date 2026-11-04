@@ -9,7 +9,7 @@ shell**, using the shell identity Shizuku provides.
 
 **Made with fun by Simo** — Telegram: [t.me/syn74x_3rr](https://t.me/syn74x_3rr)
 
-## 🎯 What this skill does
+## What this skill does
 
 Turns an AI agent into an operator for a Shizuku-enabled Android device. It can:
 
@@ -50,7 +50,7 @@ Turns an AI agent into an operator for a Shizuku-enabled Android device. It can:
 Deep docs (architecture, permissions, logs & crashes, UI playbook,
 troubleshooting) live in `references/`.
 
-## ⚙️ Requirements & install
+## Requirements & install
 
 - Android with **Shizuku** installed and its server running (wireless debugging,
   adb, or root).
@@ -81,7 +81,7 @@ Cursor, Codex, Gemini CLI and any other `SKILL.md`-capable agent. It does not
 assume a device model, vendor, uid, screen size, ABI or Android version;
 everything is detected at runtime.
 
-## 🔧 Environments
+## Environments
 
 | | Native Termux | PRoot / proot-distro |
 |---|---|---|
