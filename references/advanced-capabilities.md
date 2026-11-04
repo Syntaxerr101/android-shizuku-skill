@@ -132,4 +132,3 @@ app … disable all battery optimization for both apps.`
   writes to shared storage / `/data/local/tmp`, some `settings put` calls.
 - Never target the terminal app (or any process your shell depends on) with
   appop or permission mutations.
-  
