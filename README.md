@@ -8,6 +8,7 @@ device itself, from **native Termux** or from a **PRoot / proot-distro Linux
 shell**, using the shell identity Shizuku provides.
 
 **Made with fun by Simo** — Telegram: [t.me/syn74x_3rr](https://t.me/syn74x_3rr)
+**Update:** 11/04/2026
 
 ## What this skill does
 
