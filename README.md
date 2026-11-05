@@ -1,4 +1,5 @@
 ![android-shizuku-skill — full device control on a non‑rooted Android phone](shizuku_skill.png)
+![Downloads](https://img.shields.io/github/downloads/Syntaxerr101/Android-shizuku-skill/total) ![Latest Release](https://img.shields.io/github/v/release/Syntaxerr101/Android-shizuku-skill)  
 
 # android-shizuku-skill
 
